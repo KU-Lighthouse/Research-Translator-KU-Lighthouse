@@ -569,12 +569,6 @@ export default function ResearchTranslator() {
     const data = await callAnthropicViaProxy({
       model: model,
       max_tokens: maxTokens,
-      tools: [
-        {
-          "type": "web_search_20250305",
-          "name": "web_search"
-        }
-      ],
       messages: messages
     });
 
@@ -713,7 +707,7 @@ Return ONLY valid JSON (no markdown, no backticks):
   "institute": "Full institute name",
   "field": "Research field in 5-10 words",
   "pureUrl": "${pureUrl}",
-  "instituteUrl": "Construct from institute name (e.g., Institut for Kemi → https://chem.ku.dk)",
+  "instituteUrl": "URL to the institute exactly as it appears in <profile_text>. Use an empty string if no institute URL is present in the profile — do not construct one.",
   "profile": {
     "background": "Background in 2-3 sentences",
     "focus": "Main research focus in 2-3 sentences",
@@ -727,16 +721,16 @@ Return ONLY valid JSON (no markdown, no backticks):
   },
   "publications": [
     {
-      "title": "EXACT title of the researcher's most recently published publication",
+      "title": "EXACT title of the most recently published publication as listed in <profile_text>",
       "year": 2025,
-      "url": "Direct URL to the publication (from researchprofiles.ku.dk, Google Scholar, or ResearchGate)",
-      "source": "researchprofiles.ku.dk | Google Scholar | ResearchGate"
+      "url": "URL to the publication exactly as it appears in <profile_text>, or empty string if none",
+      "source": "researchprofiles.ku.dk"
     },
     {
-      "title": "EXACT title of the researcher's second most recently published publication",
+      "title": "EXACT title of the second most recently published publication as listed in <profile_text>",
       "year": 2025,
-      "url": "Direct URL to the publication",
-      "source": "researchprofiles.ku.dk | Google Scholar | ResearchGate"
+      "url": "URL to the publication exactly as it appears in <profile_text>, or empty string if none",
+      "source": "researchprofiles.ku.dk"
     }
   ],
   "research": {
@@ -745,15 +739,10 @@ Return ONLY valid JSON (no markdown, no backticks):
     "whyItMatters": "Practical relevance in 2-3 sentences"
   },
   "applications": {
-    "beneficiaries": ["3-4 specific groups who benefit - use concrete examples like company names"],
-    "howUsed": "Real-world applications (2-3 sentences)",
-    "impactAreas": "2-3 impact areas from: SCIENTIFIC, ECONOMIC, SOCIAL, CULTURAL, POLICY, ENVIRONMENTAL, EDUCATIONAL, TECHNOLOGICAL",
-    "stakeholders": ["2-4 specific organizations by name"],
-    "marketAnalysis": {
-      "competitors": "Others in this space (2-3 sentences)",
-      "trends": "Relevant trends (2-3 sentences)",
-      "barriers": "Barriers to application (2-3 sentences)"
-    }
+    "beneficiaries": ["2-4 groups, sectors, or roles that are explicitly mentioned in <profile_text>. Do not invent company names. Return an empty list if none are mentioned."],
+    "howUsed": "How the research is applied as described in <profile_text> (1-3 sentences). Write 'Not specified in the profile' if no application is described there.",
+    "impactAreas": "1-3 impact areas from: SCIENTIFIC, ECONOMIC, SOCIAL, CULTURAL, POLICY, ENVIRONMENTAL, EDUCATIONAL, TECHNOLOGICAL — pick only those directly supported by <profile_text>",
+    "stakeholders": ["Organisations or institutions explicitly named in <profile_text>. Return an empty list if none are named — do not invent names."]
   },
   "questions": [
     {"q": "Question derived from SPECIFIC methodology or technique mentioned in their publications", "why": "Explains what insight this question uncovers"},
@@ -773,15 +762,12 @@ CRITICAL INSTRUCTIONS FOR QUESTIONS:
 6. Keep questions conversational (max 20 words) but specific
 
 CRITICAL INSTRUCTIONS FOR PUBLICATIONS:
-1. You MUST use web_search to find the researcher's publications on Google Scholar OR ResearchGate — these are the ONLY allowed sources for publications
-2. Search Google Scholar first: site:scholar.google.com "[researcher name]"
-3. If not found on Scholar, search ResearchGate: site:researchgate.net "[researcher name]"
-4. Pick the 2 publications with the HIGHEST year (most recently published)
-5. Use the EXACT publication titles as they appear — do NOT paraphrase or summarize
-6. The year must be the actual publication year — do NOT guess
-7. The URL must link directly to the publication on Google Scholar or ResearchGate — no other sources
-8. Set "source" to "Google Scholar" or "ResearchGate" accordingly
-9. Do NOT use researchprofiles.ku.dk, Semantic Scholar, PubMed, or any other source for publications
+1. Use only publications that are listed in <profile_text>. Do not invent titles, years, or URLs.
+2. Pick the 2 publications with the HIGHEST year from those listed in <profile_text>. If fewer than 2 are listed, return only what is there.
+3. Use the EXACT publication titles as they appear in <profile_text> — do NOT paraphrase, translate, or summarise.
+4. The year must be the actual publication year as listed — do NOT guess.
+5. For "url", use the URL exactly as it appears in <profile_text>. If no URL is given for a publication, use an empty string.
+6. Set "source" to "researchprofiles.ku.dk" since the data comes from the KU Pure profile.
 
 CRITICAL LANGUAGE INSTRUCTION:
 ALL text content in the JSON (background, focus, translated, whyItMatters, howUsed, questions, etc.) MUST be written in ${lang === 'da' ? 'Danish' : 'English'}. Only publication titles should remain in their original language.
