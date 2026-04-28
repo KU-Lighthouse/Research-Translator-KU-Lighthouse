@@ -413,13 +413,13 @@ export default function ResearchTranslator() {
           title: 'Fairness Metrics for Multi-Stakeholder AI Systems: A Comparative Framework',
           year: 2025,
           url: '',
-          source: 'Google Scholar'
+          source: 'researchprofiles.ku.dk'
         },
         {
           title: 'Transparency by Design: Auditing Black-Box Models in Public Sector AI',
           year: 2024,
           url: '',
-          source: 'Google Scholar'
+          source: 'researchprofiles.ku.dk'
         }
       ],
       research: {
@@ -1841,41 +1841,6 @@ ${t.generatedBy}
                         </a>
                       )}
 
-                      {/* Google Scholar search */}
-                      <a
-                        href={`https://scholar.google.com/scholar?q="${encodeURIComponent(r.name)}"+KU`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between p-4 bg-green-50 hover:bg-green-100 border-2 border-green-200 rounded-lg transition-all group"
-                      >
-                        <div>
-                          <div className="font-semibold text-green-900 group-hover:text-green-600">
-                            [3] Google Scholar - {r.name}
-                          </div>
-                          <div className="text-xs text-green-700 mt-1">
-                            {t.publicationSearch}
-                          </div>
-                        </div>
-                        <ExternalLink className="w-5 h-5 text-green-400 group-hover:text-green-600" />
-                      </a>
-
-                      {/* ResearchGate search */}
-                      <a
-                        href={`https://www.researchgate.net/search/researcher?q=${encodeURIComponent(r.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between p-4 bg-teal-50 hover:bg-teal-100 border-2 border-teal-200 rounded-lg transition-all group"
-                      >
-                        <div>
-                          <div className="font-semibold text-teal-900 group-hover:text-teal-600">
-                            [4] ResearchGate - {r.name}
-                          </div>
-                          <div className="text-xs text-teal-700 mt-1">
-                            {t.researcherNetwork}
-                          </div>
-                        </div>
-                        <ExternalLink className="w-5 h-5 text-teal-400 group-hover:text-teal-600" />
-                      </a>
                     </div>
 
                     <div className="bg-green-50 border border-green-200 rounded-lg p-6">
