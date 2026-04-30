@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Loader2, User, Beaker, Target, HelpCircle, BookOpen, AlertCircle, ExternalLink, CheckCircle, Users, Lightbulb, TrendingUp } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
 // Translations object for bilingual support (Danish/English)
 const translations = {
@@ -104,6 +105,7 @@ const translations = {
     preparingPDF: 'Forbereder PDF...',
     popupBlocked: 'Popup blev blokeret. Tillad popups og prøv igen.',
     printDialogOpened: 'Print dialog åbnet',
+    pdfDownloaded: 'PDF downloaded',
     exportFailed: 'Eksport fejlede',
     creatingWord: 'Opretter Word-dokument...',
     wordDownloaded: 'Word-dokument downloaded',
@@ -246,6 +248,7 @@ const translations = {
     preparingPDF: 'Preparing PDF...',
     popupBlocked: 'Popup blocked. Allow popups and try again.',
     printDialogOpened: 'Print dialog opened',
+    pdfDownloaded: 'PDF downloaded',
     exportFailed: 'Export failed',
     creatingWord: 'Creating Word document...',
     wordDownloaded: 'Word document downloaded',
@@ -878,222 +881,200 @@ Return ONLY the JSON, nothing else.`
     setError('');
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     try {
       setExportStatus(t.preparingPDF);
 
       const researcherData = selectedResearcher;
 
-      // Create a new window with print-optimized content
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      const bodyContent = `
+        <h1>${researcherData.name}</h1>
+        <p class="subtitle"><strong>${researcherData.title}</strong> | ${researcherData.institute}</p>
 
-      if (!printWindow) {
-        setExportStatus(t.popupBlocked);
-        setTimeout(() => setExportStatus(''), 4000);
-        return;
-      }
+        <div class="section">
+          <h2>${t.tabs.who}</h2>
+          <p><span class="label">${t.background}:</span><br>${researcherData.profile?.background || ''}</p>
+          <p><span class="label">${t.focus}:</span><br>${researcherData.profile?.focus || ''}</p>
+        </div>
 
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>${researcherData.name} - Research Briefing</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 40px 20px;
-              line-height: 1.6;
-              color: #1a1a1a;
-            }
-            h1 {
-              color: #1e40af;
-              border-bottom: 3px solid #3b82f6;
-              padding-bottom: 10px;
-              margin-bottom: 5px;
-              font-size: 28px;
-            }
-            .subtitle {
-              color: #6b7280;
-              margin-bottom: 30px;
-              font-size: 16px;
-            }
-            h2 {
-              color: #1e40af;
-              margin-top: 30px;
-              font-size: 20px;
-              border-bottom: 1px solid #e5e7eb;
-              padding-bottom: 8px;
-            }
-            h3 {
-              color: #374151;
-              margin-top: 20px;
-              font-size: 16px;
-            }
-            .section {
-              margin-bottom: 25px;
-              padding: 15px;
-              background: #f9fafb;
-              border-radius: 8px;
-              border: 1px solid #e5e7eb;
-            }
-            .publication {
-              margin: 15px 0;
-              padding: 12px 15px;
-              background: white;
-              border-left: 4px solid #6366f1;
-              border-radius: 0 8px 8px 0;
-            }
-            .question {
-              margin: 12px 0;
-              padding: 12px;
-              background: #fef3c7;
-              border-radius: 6px;
-              border: 1px solid #fcd34d;
-            }
-            .question-number {
-              display: inline-block;
-              width: 24px;
-              height: 24px;
-              background: #1e40af;
-              color: white;
-              border-radius: 50%;
-              text-align: center;
-              line-height: 24px;
-              font-size: 12px;
-              font-weight: bold;
-              margin-right: 10px;
-            }
-            .label {
-              font-size: 11px;
-              text-transform: uppercase;
-              color: #6b7280;
-              font-weight: 600;
-              letter-spacing: 0.5px;
-            }
-            .footer {
-              text-align: center;
-              color: #9ca3af;
-              font-size: 12px;
-              margin-top: 40px;
-              padding-top: 20px;
-              border-top: 1px solid #e5e7eb;
-            }
-            @media print {
-              body {
-                padding: 0;
-                margin: 0;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              .section {
-                break-inside: avoid;
-                page-break-inside: avoid;
-              }
-              .question {
-                break-inside: avoid;
-                page-break-inside: avoid;
-              }
-              @page {
-                margin: 15mm;
-                size: A4;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>${researcherData.name}</h1>
-          <p class="subtitle"><strong>${researcherData.title}</strong> | ${researcherData.institute}</p>
+        <div class="section">
+          <h2>${t.tabs.what}</h2>
+          <p>${researcherData.research?.translated || ''}</p>
+          <p><span class="label">${t.whyItMatters}:</span><br>${researcherData.research?.whyItMatters || ''}</p>
+        </div>
 
-          <div class="section">
-            <h2>${t.tabs.who}</h2>
-            <p><span class="label">${t.background}:</span><br>${researcherData.profile?.background || ''}</p>
-            <p><span class="label">${t.focus}:</span><br>${researcherData.profile?.focus || ''}</p>
-          </div>
+        ${researcherData.publications && researcherData.publications.length > 0 ? `
+        <div class="section">
+          <h2>${t.recentPublications}</h2>
+          ${researcherData.publications.slice(0, 2).map((pub, idx) => `
+            <div class="publication">
+              <strong>${idx + 1}. ${pub.title}</strong> (${pub.year})
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
 
-          <div class="section">
-            <h2>${t.tabs.what}</h2>
-            <p>${researcherData.research?.translated || ''}</p>
-            <p><span class="label">${t.whyItMatters}:</span><br>${researcherData.research?.whyItMatters || ''}</p>
-          </div>
-
-          ${researcherData.publications && researcherData.publications.length > 0 ? `
-          <div class="section">
-            <h2>${t.recentPublications}</h2>
-            ${researcherData.publications.slice(0, 2).map((pub, idx) => `
-              <div class="publication">
-                <strong>${idx + 1}. ${pub.title}</strong> (${pub.year})
-              </div>
-            `).join('')}
-          </div>
+        ${(() => {
+          const a = researcherData.applications || {};
+          const beneficiaries = Array.isArray(a.beneficiaries) ? a.beneficiaries.filter(Boolean) : [];
+          const stakeholders = Array.isArray(a.stakeholders) ? a.stakeholders.filter(Boolean) : [];
+          const howUsed = (a.howUsed || '').trim();
+          const impactAreas = (a.impactAreas || '').trim();
+          const hasAny = beneficiaries.length || stakeholders.length || howUsed || impactAreas;
+          if (!hasAny) return '';
+          return `
+        <div class="section">
+          <h2>${t.tabs.applications}</h2>
+          ${beneficiaries.length ? `
+            <p><span class="label">${t.whoBenefits}</span><br>${beneficiaries.join(', ')}</p>
           ` : ''}
+          ${howUsed ? `
+            <p><span class="label">${t.howUsed}</span><br>${howUsed}</p>
+          ` : ''}
+          ${impactAreas ? `
+            <p><span class="label">${t.impactAreas}</span><br>${impactAreas}</p>
+          ` : ''}
+          ${stakeholders.length ? `
+            <p><span class="label">${t.keyStakeholders}</span><br>${stakeholders.join(', ')}</p>
+          ` : ''}
+        </div>
+          `;
+        })()}
 
-          ${(() => {
-            const a = researcherData.applications || {};
-            const beneficiaries = Array.isArray(a.beneficiaries) ? a.beneficiaries.filter(Boolean) : [];
-            const stakeholders = Array.isArray(a.stakeholders) ? a.stakeholders.filter(Boolean) : [];
-            const howUsed = (a.howUsed || '').trim();
-            const impactAreas = (a.impactAreas || '').trim();
-            const hasAny = beneficiaries.length || stakeholders.length || howUsed || impactAreas;
-            if (!hasAny) return '';
-            return `
-          <div class="section">
-            <h2>${t.tabs.applications}</h2>
-            ${beneficiaries.length ? `
-              <p><span class="label">${t.whoBenefits}</span><br>${beneficiaries.join(', ')}</p>
-            ` : ''}
-            ${howUsed ? `
-              <p><span class="label">${t.howUsed}</span><br>${howUsed}</p>
-            ` : ''}
-            ${impactAreas ? `
-              <p><span class="label">${t.impactAreas}</span><br>${impactAreas}</p>
-            ` : ''}
-            ${stakeholders.length ? `
-              <p><span class="label">${t.keyStakeholders}</span><br>${stakeholders.join(', ')}</p>
-            ` : ''}
-          </div>
-            `;
-          })()}
+        <div class="section">
+          <h2>${t.tabs.questions}</h2>
+          ${researcherData.questions?.map((q, idx) => `
+            <div class="question">
+              <span class="question-number">${idx + 1}</span>
+              <strong>${q.q}</strong>
+              <p style="font-size: 13px; color: #92400e; margin: 8px 0 0 34px;">${t.whyAskThis} ${q.why}</p>
+            </div>
+          `).join('') || ''}
+        </div>
 
-          <div class="section">
-            <h2>${t.tabs.questions}</h2>
-            ${researcherData.questions?.map((q, idx) => `
-              <div class="question">
-                <span class="question-number">${idx + 1}</span>
-                <strong>${q.q}</strong>
-                <p style="font-size: 13px; color: #92400e; margin: 8px 0 0 34px;">${t.whyAskThis} ${q.why}</p>
-              </div>
-            `).join('') || ''}
-          </div>
+        <div class="section">
+          <h2>${t.tabs.sources}</h2>
+          ${researcherData.pureUrl ? `<p>Pure Profil: <a href="${researcherData.pureUrl}">${researcherData.pureUrl}</a></p>` : ''}
+        </div>
 
-          <div class="section">
-            <h2>${t.tabs.sources}</h2>
-            ${researcherData.pureUrl ? `<p>Pure Profil: <a href="${researcherData.pureUrl}">${researcherData.pureUrl}</a></p>` : ''}
-          </div>
-
-          <p class="footer">
-            ${t.generatedBy}
-          </p>
-        </body>
-        </html>
+        <p class="footer">
+          ${t.generatedBy}
+        </p>
       `;
 
-      printWindow.document.write(htmlContent);
-      printWindow.document.close();
+      const styles = `
+        * { box-sizing: border-box; }
+        .pdf-root {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+          width: 760px;
+          padding: 24px;
+          line-height: 1.6;
+          color: #1a1a1a;
+          background: #ffffff;
+        }
+        .pdf-root h1 {
+          color: #1e40af;
+          border-bottom: 3px solid #3b82f6;
+          padding-bottom: 10px;
+          margin-bottom: 5px;
+          font-size: 28px;
+        }
+        .pdf-root .subtitle { color: #6b7280; margin-bottom: 24px; font-size: 16px; }
+        .pdf-root h2 {
+          color: #1e40af;
+          margin-top: 24px;
+          font-size: 20px;
+          border-bottom: 1px solid #e5e7eb;
+          padding-bottom: 8px;
+        }
+        .pdf-root h3 { color: #374151; margin-top: 16px; font-size: 16px; }
+        .pdf-root .section {
+          margin-bottom: 20px;
+          padding: 15px;
+          background: #f9fafb;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
+          page-break-inside: avoid;
+        }
+        .pdf-root .publication {
+          margin: 12px 0;
+          padding: 10px 14px;
+          background: #ffffff;
+          border-left: 4px solid #6366f1;
+          border-radius: 0 8px 8px 0;
+          page-break-inside: avoid;
+        }
+        .pdf-root .question {
+          margin: 10px 0;
+          padding: 10px;
+          background: #fef3c7;
+          border-radius: 6px;
+          border: 1px solid #fcd34d;
+          page-break-inside: avoid;
+        }
+        .pdf-root .question-number {
+          display: inline-block;
+          width: 24px;
+          height: 24px;
+          background: #1e40af;
+          color: #ffffff;
+          border-radius: 50%;
+          text-align: center;
+          line-height: 24px;
+          font-size: 12px;
+          font-weight: bold;
+          margin-right: 10px;
+        }
+        .pdf-root .label {
+          font-size: 11px;
+          text-transform: uppercase;
+          color: #6b7280;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+        }
+        .pdf-root .footer {
+          text-align: center;
+          color: #9ca3af;
+          font-size: 12px;
+          margin-top: 30px;
+          padding-top: 16px;
+          border-top: 1px solid #e5e7eb;
+        }
+      `;
 
-      // Wait for content to load, then trigger print
-      printWindow.onload = function() {
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-        }, 250);
-      };
+      const container = document.createElement('div');
+      container.className = 'pdf-root';
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      const styleEl = document.createElement('style');
+      styleEl.textContent = styles;
+      container.appendChild(styleEl);
+      const content = document.createElement('div');
+      content.innerHTML = bodyContent;
+      container.appendChild(content);
+      document.body.appendChild(container);
 
-      setExportStatus(t.printDialogOpened);
-      setTimeout(() => setExportStatus(''), 3000);
+      const filename = `${researcherData.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.pdf`;
+
+      try {
+        await html2pdf()
+          .set({
+            margin: [10, 10, 10, 10],
+            filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'legacy'] },
+          })
+          .from(container)
+          .save();
+
+        setExportStatus(t.pdfDownloaded);
+        setTimeout(() => setExportStatus(''), 3000);
+      } finally {
+        document.body.removeChild(container);
+      }
     } catch (error) {
       console.error('Export error:', error);
       setExportStatus(t.exportFailed);
