@@ -565,7 +565,7 @@ export default function ResearchTranslator() {
 
   // Multi-turn API call helper function with proper tool handling
   // All API calls go through the Cloudflare Worker proxy (API key stored securely in Worker)
-  const callClaudeWithTools = async (messages, model = "claude-sonnet-4-6", maxTokens = 8000) => {
+  const callClaudeWithTools = async (messages, model = "claude-haiku-4-5-20251001", maxTokens = 8000) => {
     const data = await callAnthropicViaProxy({
       model: model,
       max_tokens: maxTokens,
@@ -619,6 +619,37 @@ export default function ResearchTranslator() {
     return text;
   };
 
+  // KU Pure profile pages list a curated selection of publications inline (often
+  // older, most-cited ones) rather than the most recent. The publications RSS
+  // feed honors `ordering=publicationYearThenTitle` and returns newest first,
+  // and is not blocked by the Cloudflare challenge that protects the HTML
+  // /publications/ subpage. We fetch it and prepend a clean "newest first" list
+  // to the profile text so the model has the actual most-recent publications.
+  const fetchRecentPublications = async (pureUrl) => {
+    try {
+      const base = pureUrl.replace(/\/+$/, '');
+      const rssUrl = `${base}/publications/?format=rss&ordering=publicationYearThenTitle`;
+      const xml = await fetchViaProxy(rssUrl);
+      const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
+      const parsed = items.slice(0, 10).map(item => {
+        const title = (item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+        const link = (item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
+        const dcDate = (item.match(/<dc:date>([\s\S]*?)<\/dc:date>/) || [])[1] || '';
+        const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
+        const yearMatch = (dcDate || pubDate).match(/(\d{4})/);
+        return {
+          title: title.replace(/<!\[CDATA\[|\]\]>/g, '').trim(),
+          year: yearMatch ? yearMatch[1] : '',
+          url: link.trim(),
+        };
+      }).filter(p => p.title);
+      return parsed;
+    } catch (err) {
+      console.warn('Recent publications RSS fetch failed:', err);
+      return [];
+    }
+  };
+
   const generateBriefing = async (pureUrl) => {
     setState('processing');
     setProgress(0);
@@ -640,6 +671,18 @@ export default function ResearchTranslator() {
       } catch (proxyError) {
         console.warn('Proxy fetch failed, falling back to web_search:', proxyError);
         pureHtmlContent = null;
+      }
+
+      // Augment with newest-first publications list from the RSS feed — the inline
+      // profile preview is not chronologically sorted (see fetchRecentPublications).
+      if (pureHtmlContent) {
+        const recent = await fetchRecentPublications(pureUrl);
+        if (recent.length) {
+          const block = recent.map((p, i) =>
+            `${i + 1}. "${p.title}" (${p.year || 'n.d.'}) — ${p.url}`
+          ).join('\n');
+          pureHtmlContent += `\n\n--- RECENT PUBLICATIONS (sorted newest first, authoritative source for the publications list) ---\n${block}`;
+        }
       }
 
       setProgress(40);
@@ -763,11 +806,12 @@ CRITICAL INSTRUCTIONS FOR QUESTIONS:
 
 CRITICAL INSTRUCTIONS FOR PUBLICATIONS:
 1. Use only publications that are listed in <profile_text>. Do not invent titles, years, or URLs.
-2. Pick the 2 publications with the HIGHEST year from those listed in <profile_text>. If fewer than 2 are listed, return only what is there.
-3. Use the EXACT publication titles as they appear in <profile_text> — do NOT paraphrase, translate, or summarise.
-4. The year must be the actual publication year as listed — do NOT guess.
-5. For "url", use the URL exactly as it appears in <profile_text>. If no URL is given for a publication, use an empty string.
-6. Set "source" to "researchprofiles.ku.dk" since the data comes from the KU Pure profile.
+2. If the section "RECENT PUBLICATIONS (sorted newest first, authoritative source for the publications list)" is present in <profile_text>, take the 2 publications from the TOP of that section in order — they are already sorted newest first. Ignore any older publications listed elsewhere in the profile.
+3. Only fall back to picking the 2 publications with the HIGHEST year from elsewhere in <profile_text> if the RECENT PUBLICATIONS section is absent. If fewer than 2 publications are available, return only what is there.
+4. Use the EXACT publication titles as they appear in <profile_text> — do NOT paraphrase, translate, or summarise.
+5. The year must be the actual publication year as listed — do NOT guess.
+6. For "url", use the URL exactly as it appears in <profile_text>. If no URL is given for a publication, use an empty string.
+7. Set "source" to "researchprofiles.ku.dk" since the data comes from the KU Pure profile.
 
 CRITICAL LANGUAGE INSTRUCTION:
 ALL text content in the JSON (background, focus, translated, whyItMatters, howUsed, questions, etc.) MUST be written in ${lang === 'da' ? 'Danish' : 'English'}. Only publication titles should remain in their original language.
@@ -987,6 +1031,33 @@ Return ONLY the JSON, nothing else.`
           </div>
           ` : ''}
 
+          ${(() => {
+            const a = researcherData.applications || {};
+            const beneficiaries = Array.isArray(a.beneficiaries) ? a.beneficiaries.filter(Boolean) : [];
+            const stakeholders = Array.isArray(a.stakeholders) ? a.stakeholders.filter(Boolean) : [];
+            const howUsed = (a.howUsed || '').trim();
+            const impactAreas = (a.impactAreas || '').trim();
+            const hasAny = beneficiaries.length || stakeholders.length || howUsed || impactAreas;
+            if (!hasAny) return '';
+            return `
+          <div class="section">
+            <h2>${t.tabs.applications}</h2>
+            ${beneficiaries.length ? `
+              <p><span class="label">${t.whoBenefits}</span><br>${beneficiaries.join(', ')}</p>
+            ` : ''}
+            ${howUsed ? `
+              <p><span class="label">${t.howUsed}</span><br>${howUsed}</p>
+            ` : ''}
+            ${impactAreas ? `
+              <p><span class="label">${t.impactAreas}</span><br>${impactAreas}</p>
+            ` : ''}
+            ${stakeholders.length ? `
+              <p><span class="label">${t.keyStakeholders}</span><br>${stakeholders.join(', ')}</p>
+            ` : ''}
+          </div>
+            `;
+          })()}
+
           <div class="section">
             <h2>${t.tabs.questions}</h2>
             ${researcherData.questions?.map((q, idx) => `
@@ -1089,6 +1160,25 @@ ${researcherData.publications.slice(0, 2).map((pub, idx) => `
 `).join('')}
 </div>
 ` : ''}
+
+${(() => {
+  const a = researcherData.applications || {};
+  const beneficiaries = Array.isArray(a.beneficiaries) ? a.beneficiaries.filter(Boolean) : [];
+  const stakeholders = Array.isArray(a.stakeholders) ? a.stakeholders.filter(Boolean) : [];
+  const howUsed = (a.howUsed || '').trim();
+  const impactAreas = (a.impactAreas || '').trim();
+  const hasAny = beneficiaries.length || stakeholders.length || howUsed || impactAreas;
+  if (!hasAny) return '';
+  return `
+<div class="section">
+<h2>${t.tabs.applications}</h2>
+${beneficiaries.length ? `<p><strong>${t.whoBenefits}</strong> ${beneficiaries.join(', ')}</p>` : ''}
+${howUsed ? `<p><strong>${t.howUsed}</strong> ${howUsed}</p>` : ''}
+${impactAreas ? `<p><strong>${t.impactAreas}</strong> ${impactAreas}</p>` : ''}
+${stakeholders.length ? `<p><strong>${t.keyStakeholders}</strong> ${stakeholders.join(', ')}</p>` : ''}
+</div>
+  `;
+})()}
 
 <div class="section">
 <h2>${t.tabs.questions}</h2>
