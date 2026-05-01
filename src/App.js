@@ -1044,9 +1044,10 @@ Return ONLY the JSON, nothing else.`
 
       const container = document.createElement('div');
       container.className = 'pdf-root';
-      container.style.position = 'fixed';
+      container.style.position = 'absolute';
       container.style.left = '-10000px';
       container.style.top = '0';
+      container.style.pointerEvents = 'none';
       const styleEl = document.createElement('style');
       styleEl.textContent = styles;
       container.appendChild(styleEl);
@@ -1054,6 +1055,8 @@ Return ONLY the JSON, nothing else.`
       content.innerHTML = bodyContent;
       container.appendChild(content);
       document.body.appendChild(container);
+
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       const filename = `${researcherData.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.pdf`;
 
