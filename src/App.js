@@ -1042,21 +1042,27 @@ Return ONLY the JSON, nothing else.`
         }
       `;
 
-      const container = document.createElement('div');
-      container.className = 'pdf-root';
-      container.style.position = 'absolute';
-      container.style.left = '-10000px';
-      container.style.top = '0';
-      container.style.pointerEvents = 'none';
       const styleEl = document.createElement('style');
       styleEl.textContent = styles;
-      container.appendChild(styleEl);
-      const content = document.createElement('div');
-      content.innerHTML = bodyContent;
-      container.appendChild(content);
-      document.body.appendChild(container);
+      document.head.appendChild(styleEl);
 
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'fixed';
+      wrapper.style.top = '0';
+      wrapper.style.left = '0';
+      wrapper.style.width = '0';
+      wrapper.style.height = '0';
+      wrapper.style.overflow = 'hidden';
+      wrapper.style.zIndex = '-9999';
+      wrapper.style.pointerEvents = 'none';
+
+      const container = document.createElement('div');
+      container.className = 'pdf-root';
+      container.innerHTML = bodyContent;
+      wrapper.appendChild(container);
+      document.body.appendChild(wrapper);
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       const filename = `${researcherData.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.pdf`;
 
@@ -1066,7 +1072,7 @@ Return ONLY the JSON, nothing else.`
             margin: [10, 10, 10, 10],
             filename,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['css', 'legacy'] },
           })
@@ -1076,12 +1082,14 @@ Return ONLY the JSON, nothing else.`
         setExportStatus(t.pdfDownloaded);
         setTimeout(() => setExportStatus(''), 3000);
       } finally {
-        document.body.removeChild(container);
+        if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+        if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
       }
     } catch (error) {
-      console.error('Export error:', error);
-      setExportStatus(t.exportFailed);
-      setTimeout(() => setExportStatus(''), 3000);
+      console.error('PDF export error:', error);
+      const detail = (error && (error.message || error.toString())) || 'unknown';
+      setExportStatus(`${t.exportFailed}: ${String(detail).slice(0, 220)}`);
+      setTimeout(() => setExportStatus(''), 12000);
     }
   };
 
