@@ -881,80 +881,123 @@ Return ONLY the JSON, nothing else.`
     setError('');
   };
 
+  const normalizeResearcherForExport = (raw) => {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    const str = (v) => (typeof v === 'string' ? v : (v == null ? '' : String(v)));
+    const trimStr = (v) => str(v).trim();
+    const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    const arr = (v) => Array.isArray(v) ? v : [];
+
+    const profileSrc = obj(src.profile);
+    const researchSrc = obj(src.research);
+    const applicationsSrc = obj(src.applications);
+
+    const publications = arr(src.publications)
+      .filter((p) => p && typeof p === 'object')
+      .map((p) => ({ title: str(p.title), year: str(p.year) }));
+
+    const questions = arr(src.questions)
+      .filter((q) => q && typeof q === 'object')
+      .map((q) => ({ q: str(q.q), why: str(q.why) }));
+
+    const nameRaw = trimStr(src.name);
+
+    return {
+      name: nameRaw || 'Forsker',
+      title: str(src.title),
+      institute: str(src.institute),
+      pureUrl: str(src.pureUrl),
+      profile: {
+        background: str(profileSrc.background),
+        focus: str(profileSrc.focus),
+      },
+      research: {
+        translated: str(researchSrc.translated),
+        whyItMatters: str(researchSrc.whyItMatters),
+      },
+      publications,
+      questions,
+      applications: {
+        beneficiaries: arr(applicationsSrc.beneficiaries).map(str).filter(Boolean),
+        stakeholders: arr(applicationsSrc.stakeholders).map(str).filter(Boolean),
+        howUsed: trimStr(applicationsSrc.howUsed),
+        impactAreas: trimStr(applicationsSrc.impactAreas),
+      },
+    };
+  };
+
   const handleExportPDF = async () => {
     try {
       setExportStatus(t.preparingPDF);
 
-      const researcherData = selectedResearcher;
+      const r = normalizeResearcherForExport(selectedResearcher);
 
       const bodyContent = `
-        <h1>${researcherData.name}</h1>
-        <p class="subtitle"><strong>${researcherData.title}</strong> | ${researcherData.institute}</p>
+        <h1>${r.name}</h1>
+        <p class="subtitle"><strong>${r.title}</strong> | ${r.institute}</p>
 
         <div class="section">
           <h2>${t.tabs.who}</h2>
-          <p><span class="label">${t.background}:</span><br>${researcherData.profile?.background || ''}</p>
-          <p><span class="label">${t.focus}:</span><br>${researcherData.profile?.focus || ''}</p>
+          <p><span class="label">${t.background}:</span><br>${r.profile.background}</p>
+          <p><span class="label">${t.focus}:</span><br>${r.profile.focus}</p>
         </div>
 
         <div class="section">
           <h2>${t.tabs.what}</h2>
-          <p>${researcherData.research?.translated || ''}</p>
-          <p><span class="label">${t.whyItMatters}:</span><br>${researcherData.research?.whyItMatters || ''}</p>
+          <p>${r.research.translated}</p>
+          <p><span class="label">${t.whyItMatters}:</span><br>${r.research.whyItMatters}</p>
         </div>
 
-        ${researcherData.publications && researcherData.publications.length > 0 ? `
+        ${r.publications.length > 0 ? `
         <div class="section">
           <h2>${t.recentPublications}</h2>
-          ${researcherData.publications.slice(0, 2).map((pub, idx) => `
+          ${r.publications.slice(0, 2).map((pub, idx) => `
             <div class="publication">
-              <strong>${idx + 1}. ${pub.title}</strong> (${pub.year})
+              <strong>${idx + 1}. ${pub.title}</strong>${pub.year ? ` (${pub.year})` : ''}
             </div>
           `).join('')}
         </div>
         ` : ''}
 
         ${(() => {
-          const a = researcherData.applications || {};
-          const beneficiaries = Array.isArray(a.beneficiaries) ? a.beneficiaries.filter(Boolean) : [];
-          const stakeholders = Array.isArray(a.stakeholders) ? a.stakeholders.filter(Boolean) : [];
-          const howUsed = (a.howUsed || '').trim();
-          const impactAreas = (a.impactAreas || '').trim();
-          const hasAny = beneficiaries.length || stakeholders.length || howUsed || impactAreas;
+          const a = r.applications;
+          const hasAny = a.beneficiaries.length || a.stakeholders.length || a.howUsed || a.impactAreas;
           if (!hasAny) return '';
           return `
         <div class="section">
           <h2>${t.tabs.applications}</h2>
-          ${beneficiaries.length ? `
-            <p><span class="label">${t.whoBenefits}</span><br>${beneficiaries.join(', ')}</p>
+          ${a.beneficiaries.length ? `
+            <p><span class="label">${t.whoBenefits}</span><br>${a.beneficiaries.join(', ')}</p>
           ` : ''}
-          ${howUsed ? `
-            <p><span class="label">${t.howUsed}</span><br>${howUsed}</p>
+          ${a.howUsed ? `
+            <p><span class="label">${t.howUsed}</span><br>${a.howUsed}</p>
           ` : ''}
-          ${impactAreas ? `
-            <p><span class="label">${t.impactAreas}</span><br>${impactAreas}</p>
+          ${a.impactAreas ? `
+            <p><span class="label">${t.impactAreas}</span><br>${a.impactAreas}</p>
           ` : ''}
-          ${stakeholders.length ? `
-            <p><span class="label">${t.keyStakeholders}</span><br>${stakeholders.join(', ')}</p>
+          ${a.stakeholders.length ? `
+            <p><span class="label">${t.keyStakeholders}</span><br>${a.stakeholders.join(', ')}</p>
           ` : ''}
         </div>
           `;
         })()}
 
+        ${r.questions.length > 0 ? `
         <div class="section">
           <h2>${t.tabs.questions}</h2>
-          ${researcherData.questions?.map((q, idx) => `
+          ${r.questions.map((q, idx) => `
             <div class="question">
               <span class="question-number">${idx + 1}</span>
               <strong>${q.q}</strong>
-              <p style="font-size: 13px; color: #92400e; margin: 8px 0 0 34px;">${t.whyAskThis} ${q.why}</p>
+              ${q.why ? `<p style="font-size: 13px; color: #92400e; margin: 8px 0 0 34px;">${t.whyAskThis} ${q.why}</p>` : ''}
             </div>
-          `).join('') || ''}
+          `).join('')}
         </div>
+        ` : ''}
 
         <div class="section">
           <h2>${t.tabs.sources}</h2>
-          ${researcherData.pureUrl ? `<p>Pure Profil: <a href="${researcherData.pureUrl}">${researcherData.pureUrl}</a></p>` : ''}
+          ${r.pureUrl ? `<p>Pure Profil: <a href="${r.pureUrl}">${r.pureUrl}</a></p>` : ''}
         </div>
 
         <p class="footer">
@@ -1064,7 +1107,7 @@ Return ONLY the JSON, nothing else.`
 
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const filename = `${researcherData.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.pdf`;
+      const filename = `${r.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.pdf`;
 
       try {
         await html2pdf()
@@ -1097,7 +1140,7 @@ Return ONLY the JSON, nothing else.`
     try {
       setExportStatus(t.creatingWord);
 
-      const researcherData = selectedResearcher;
+      const r = normalizeResearcherForExport(selectedResearcher);
 
       // Create Word-compatible HTML with proper encoding
       const wordHTML = `
@@ -1105,7 +1148,7 @@ Return ONLY the JSON, nothing else.`
 <head>
 <meta charset='utf-8'>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>${researcherData.name} - Research Briefing</title>
+<title>${r.name} - Research Briefing</title>
 <!--[if gte mso 9]>
 <xml>
 <w:WordDocument>
@@ -1127,64 +1170,62 @@ p { margin: 6pt 0; }
 </style>
 </head>
 <body>
-<h1>${researcherData.name}</h1>
-<p><strong>${researcherData.title}</strong> | ${researcherData.institute}</p>
+<h1>${r.name}</h1>
+<p><strong>${r.title}</strong> | ${r.institute}</p>
 
 <div class="section">
 <h2>${t.tabs.who}</h2>
-<p><strong>${t.background}:</strong> ${researcherData.profile?.background || ''}</p>
-<p><strong>${t.focus}:</strong> ${researcherData.profile?.focus || ''}</p>
+<p><strong>${t.background}:</strong> ${r.profile.background}</p>
+<p><strong>${t.focus}:</strong> ${r.profile.focus}</p>
 </div>
 
 <div class="section">
 <h2>${t.tabs.what}</h2>
-<p>${researcherData.research?.translated || ''}</p>
-<p><strong>${t.whyItMatters}:</strong> ${researcherData.research?.whyItMatters || ''}</p>
+<p>${r.research.translated}</p>
+<p><strong>${t.whyItMatters}:</strong> ${r.research.whyItMatters}</p>
 </div>
 
-${researcherData.publications && researcherData.publications.length > 0 ? `
+${r.publications.length > 0 ? `
 <div class="section">
 <h2>${t.recentPublications}</h2>
-${researcherData.publications.slice(0, 2).map((pub, idx) => `
+${r.publications.slice(0, 2).map((pub, idx) => `
 <div class="publication">
-<p><strong>${idx + 1}. ${pub.title}</strong> (${pub.year})</p>
+<p><strong>${idx + 1}. ${pub.title}</strong>${pub.year ? ` (${pub.year})` : ''}</p>
 </div>
 `).join('')}
 </div>
 ` : ''}
 
 ${(() => {
-  const a = researcherData.applications || {};
-  const beneficiaries = Array.isArray(a.beneficiaries) ? a.beneficiaries.filter(Boolean) : [];
-  const stakeholders = Array.isArray(a.stakeholders) ? a.stakeholders.filter(Boolean) : [];
-  const howUsed = (a.howUsed || '').trim();
-  const impactAreas = (a.impactAreas || '').trim();
-  const hasAny = beneficiaries.length || stakeholders.length || howUsed || impactAreas;
+  const a = r.applications;
+  const hasAny = a.beneficiaries.length || a.stakeholders.length || a.howUsed || a.impactAreas;
   if (!hasAny) return '';
   return `
 <div class="section">
 <h2>${t.tabs.applications}</h2>
-${beneficiaries.length ? `<p><strong>${t.whoBenefits}</strong> ${beneficiaries.join(', ')}</p>` : ''}
-${howUsed ? `<p><strong>${t.howUsed}</strong> ${howUsed}</p>` : ''}
-${impactAreas ? `<p><strong>${t.impactAreas}</strong> ${impactAreas}</p>` : ''}
-${stakeholders.length ? `<p><strong>${t.keyStakeholders}</strong> ${stakeholders.join(', ')}</p>` : ''}
+${a.beneficiaries.length ? `<p><strong>${t.whoBenefits}</strong> ${a.beneficiaries.join(', ')}</p>` : ''}
+${a.howUsed ? `<p><strong>${t.howUsed}</strong> ${a.howUsed}</p>` : ''}
+${a.impactAreas ? `<p><strong>${t.impactAreas}</strong> ${a.impactAreas}</p>` : ''}
+${a.stakeholders.length ? `<p><strong>${t.keyStakeholders}</strong> ${a.stakeholders.join(', ')}</p>` : ''}
 </div>
   `;
 })()}
 
+${r.questions.length > 0 ? `
 <div class="section">
 <h2>${t.tabs.questions}</h2>
-${researcherData.questions?.map((q, idx) => `
+${r.questions.map((q, idx) => `
 <div class="question">
 <p><strong>${idx + 1}. ${q.q}</strong></p>
-<p style="color: #92400e; font-size: 10pt;">${t.whyAskThis} ${q.why}</p>
+${q.why ? `<p style="color: #92400e; font-size: 10pt;">${t.whyAskThis} ${q.why}</p>` : ''}
 </div>
-`).join('') || ''}
+`).join('')}
 </div>
+` : ''}
 
 <div class="section">
 <h2>${t.tabs.sources}</h2>
-${researcherData.pureUrl ? `<p>Pure Profil: ${researcherData.pureUrl}</p>` : ''}
+${r.pureUrl ? `<p>Pure Profil: ${r.pureUrl}</p>` : ''}
 </div>
 
 <p style="text-align: center; color: #666; margin-top: 24pt;">
@@ -1200,7 +1241,7 @@ ${t.generatedBy}
 
       // Create download URL and trigger download
       const url = URL.createObjectURL(blob);
-      const filename = `${researcherData.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.doc`;
+      const filename = `${r.name.replace(/[^a-zA-Z0-9æøåÆØÅ\s]/g, '').replace(/\s+/g, '_')}_briefing.doc`;
 
       // Create and click download link
       const downloadLink = document.createElement('a');
@@ -1219,9 +1260,10 @@ ${t.generatedBy}
       setExportStatus(t.wordDownloaded);
       setTimeout(() => setExportStatus(''), 3000);
     } catch (error) {
-      console.error('Export error:', error);
-      setExportStatus(t.exportFailed);
-      setTimeout(() => setExportStatus(''), 3000);
+      console.error('Word export error:', error);
+      const detail = (error && (error.message || error.toString())) || 'unknown';
+      setExportStatus(`${t.exportFailed}: ${String(detail).slice(0, 220)}`);
+      setTimeout(() => setExportStatus(''), 12000);
     }
   };
 
